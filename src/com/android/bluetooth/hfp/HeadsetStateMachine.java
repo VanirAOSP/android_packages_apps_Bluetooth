@@ -188,15 +188,14 @@ final class HeadsetStateMachine extends StateMachine {
     private IBluetoothHeadsetPhone mPhoneProxy;
     private boolean mNativeAvailable;
 
-    // Indicates whether audio can be routed to the device.
-    private boolean mAudioRouteAllowed = true;
-
     private boolean mA2dpSuspend;
     private int mA2dpPlayState;
     private int mA2dpState;
     private boolean mPendingCiev;
     //ConcurrentLinkeQueue is used so that it is threadsafe
     private ConcurrentLinkedQueue<HeadsetCallState> mPendingCallStates = new ConcurrentLinkedQueue<HeadsetCallState>();
+    // Indicates whether audio can be routed to the device.
+    private boolean mAudioRouteAllowed = true;
 
     // mCurrentDevice is the device connected before the state changes
     // mTargetDevice is the device to be connected

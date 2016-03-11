@@ -453,13 +453,6 @@ final class HeadsetClientStateMachine extends StateMachine {
     private void updateCallSetupIndicator(int callsetup) {
         Log.d(TAG, "updateCallSetupIndicator " + callsetup + " " + mPendingAction.first);
 
-            if (mAudioManager.getMode() == AudioManager.MODE_RINGTONE) {
-                mAudioManager.setMode(AudioManager.MODE_NORMAL);
-            }
-            //abandon audio focus
-            Log.d(TAG, "abandonAudioFocus");
-            // abandon audio focus after the mode has been set back to normal
-            mAudioManager.abandonAudioFocusForCall();
         if (waitForIndicators(-1, callsetup, -1)) {
             return;
         }
@@ -1006,13 +999,6 @@ final class HeadsetClientStateMachine extends StateMachine {
         int action;
 
         Log.d(TAG, "rejectCall");
-            if (mAudioManager.getMode() == AudioManager.MODE_RINGTONE) {
-                mAudioManager.setMode(AudioManager.MODE_NORMAL);
-            }
-            //abandon audio focus
-            Log.d(TAG, "abandonAudioFocus");
-            // abandon audio focus after the mode has been set back to normal
-            mAudioManager.abandonAudioFocusForCall();
 
         BluetoothHeadsetClientCall c =
                 getCall(BluetoothHeadsetClientCall.CALL_STATE_INCOMING,
@@ -2033,18 +2019,6 @@ final class HeadsetClientStateMachine extends StateMachine {
         private void processConnectionEvent(int state, BluetoothDevice device) {
             switch (state) {
                 case HeadsetClientHalConstants.CONNECTION_STATE_DISCONNECTED:
-                    if (mRingtone != null && mRingtone.isPlaying()) {
-                        mRingtone.stop();
-                    if (mAudioManager.getMode() ==
-                            AudioManager.MODE_RINGTONE) {
-                        mAudioManager.setMode(AudioManager.MODE_NORMAL);
-                    }
-                    //abandon audio focus
-                    Log.d(TAG, "abandonAudioFocus");
-                    /* abandon audio focus after the mode has
-                     been set back to normal*/
-                    mAudioManager.abandonAudioFocusForCall();
-                    }
                     Log.d(TAG, "Connected disconnects.");
                     // AG disconnects
                     if (mCurrentDevice.equals(device)) {
