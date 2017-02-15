@@ -83,13 +83,10 @@ final class RemoteDevices {
     }
 
     BluetoothDevice getDevice(byte[] address) {
-        synchronized (mDevices) {
-            DeviceProperties p = mDevices.get(Utils.getAddressStringFromByte(address));
-            if (p != null) {
-                return p.getDevice();
-            }
-        }
-        return null;
+        DeviceProperties prop = mDevices.get(Utils.getAddressStringFromByte(address));
+        if (prop == null)
+           return null;
+        return prop.getDevice();
     }
 
     DeviceProperties addDeviceProperties(byte[] address) {
@@ -269,11 +266,6 @@ final class RemoteDevices {
             bdDevice = getDevice(address);
         } else {
             device = getDeviceProperties(bdDevice);
-        }
-
-        if (types.length <= 0) {
-            errorLog("No properties to update");
-            return;
         }
 
         for (int j = 0; j < types.length && device != null; j++) {

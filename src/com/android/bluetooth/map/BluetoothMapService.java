@@ -135,7 +135,6 @@ public class BluetoothMapService extends ProfileService {
     private HashMap<BluetoothMapAccountItem, BluetoothMapMasInstance> mMasInstanceMap =
             new HashMap<BluetoothMapAccountItem, BluetoothMapMasInstance>(1);
 
-    private static BluetoothDevice mRemoteDevice = null; // The remote connected device - protect access
 
     private ArrayList<BluetoothMapAccountItem> mEnabledAccounts = null;
     private static String sRemoteDeviceName = null;

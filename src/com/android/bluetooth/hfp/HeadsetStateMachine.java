@@ -111,12 +111,10 @@ final class HeadsetStateMachine extends StateMachine {
     static final int ENABLE_WBS = 16;
     static final int DISABLE_WBS = 17;
 
-    static final int BIND_RESPONSE = 18;
-
-    static final int UPDATE_A2DP_PLAY_STATE = 28;
-    static final int UPDATE_A2DP_CONN_STATE = 29;
-    static final int QUERY_PHONE_STATE_AT_SLC = 30;
-    static final int UPDATE_CALL_TYPE = 31;
+    static final int UPDATE_A2DP_PLAY_STATE = 18;
+    static final int UPDATE_A2DP_CONN_STATE = 19;
+    static final int QUERY_PHONE_STATE_AT_SLC = 20;
+    static final int UPDATE_CALL_TYPE = 21;
 
     private static final int STACK_EVENT = 101;
     private static final int DIALING_OUT_TIMEOUT = 102;
@@ -630,15 +628,6 @@ final class HeadsetStateMachine extends StateMachine {
                             }
                             processConnectionEvent(event.valueInt, event.device);
                             break;
-
-                        case EVENT_TYPE_BIND:
-                            processAtBind(event.valueString, event.device);
-                            break;
-
-                        case EVENT_TYPE_BIEV:
-                            processAtBiev(event.valueInt, event.valueInt2, event.device);
-                            break;
-
                         default:
                             Log.e(TAG, "Unexpected event: " + event.type);
                             break;
@@ -1081,13 +1070,6 @@ final class HeadsetStateMachine extends StateMachine {
                 case UPDATE_CALL_TYPE:
                     processIntentUpdateCallType((Intent) message.obj);
                     break;
-                case BIND_RESPONSE:
-                {
-                    BluetoothDevice device = (BluetoothDevice) message.obj;
-                    bindResponseNative((int)message.arg1, ((message.arg2 == 1) ? true : false),
-                                        getByteAddress(device));
-                }
-                    break;
                 case START_VR_TIMEOUT:
                 {
                     BluetoothDevice device = (BluetoothDevice) message.obj;
@@ -1168,11 +1150,6 @@ final class HeadsetStateMachine extends StateMachine {
                         case EVENT_TYPE_KEY_PRESSED:
                             processKeyPressed(event.device);
                             break;
-                        case EVENT_TYPE_BIND:
-                            processAtBind(event.valueString, event.device);
-                            break;
-                        case EVENT_TYPE_BIEV:
-                            processAtBiev(event.valueInt, event.valueInt2, event.device);
                             break;
                         default:
                             Log.e(TAG, "Unknown stack event: " + event.type);
@@ -1674,11 +1651,6 @@ final class HeadsetStateMachine extends StateMachine {
                         case EVENT_TYPE_KEY_PRESSED:
                             processKeyPressed(event.device);
                             break;
-                        case EVENT_TYPE_BIND:
-                            processAtBind(event.valueString, event.device);
-                            break;
-                        case EVENT_TYPE_BIEV:
-                            processAtBiev(event.valueInt, event.valueInt2, event.device);
                             break;
                         default:
                             Log.e(TAG, "Unknown stack event: " + event.type);
@@ -2098,11 +2070,6 @@ final class HeadsetStateMachine extends StateMachine {
                         case EVENT_TYPE_KEY_PRESSED:
                             processKeyPressed(event.device);
                             break;
-                        case EVENT_TYPE_BIND:
-                            processAtBind(event.valueString, event.device);
-                            break;
-                        case EVENT_TYPE_BIEV:
-                            processAtBiev(event.valueInt, event.valueInt2, event.device);
                             break;
                         default:
                             Log.e(TAG, "Unexpected event: " + event.type);
@@ -2855,6 +2822,26 @@ final class HeadsetStateMachine extends StateMachine {
         mService.sendBroadcastAsUser(intent, UserHandle.ALL,
                 HeadsetService.BLUETOOTH_PERM);
         if (DBG) Log.d(TAG, "Exit broadcastVendorSpecificEventIntent()");
+    }
+
+    /*
+     * Put the HF indicator assigned number, value and device in an Intent and broadcast it.
+     */
+
+    private void broadcastHfIndicatorValueChangeIntent(int anum, long value,
+                                                    BluetoothDevice device) {
+        if (DBG) Log.d(TAG, "Enter broadcastHfIndicatorValueChangeIntent()");
+        if (DBG) Log.d(TAG, "broadcastHfIndicatorValueChangeIntent");
+        Intent intent =
+                new Intent(BluetoothHeadset.ACTION_HF_INDICATOR_VALUE_CHANGED);
+        intent.putExtra(BluetoothDevice.EXTRA_DEVICE, device);
+        intent.addCategory(BluetoothHeadset.HF_INDICATOR_ASSIGNED_NUMBER
+            + "." + Integer.toString(anum));
+        intent.addCategory(BluetoothHeadset.HF_INDICATOR_ASSIGNED_NUMBER_VALUE
+            + "." + Long.toString(value));
+
+        mService.sendBroadcast(intent, HeadsetService.BLUETOOTH_PERM);
+        if (DBG) Log.d(TAG, "Exit broadcastHfIndicatorValueChangeIntent()");
     }
 
     private void configAudioParameters(BluetoothDevice device)
@@ -3670,6 +3657,34 @@ final class HeadsetStateMachine extends StateMachine {
     }
 
     /**
+     * Break an argument string into individual arguments (comma delimited).
+     * First argument is turned into integer object and second into long object.
+     * Otherwise a String object is used.
+     */
+    static private Object[] generateArgsBiev(String input) {
+        if (DBG) Log.d(TAG, "Enter generateArgsBiev()");
+        int i = 0;
+        int j;
+        ArrayList<Object> out = new ArrayList<Object>();
+        while (i <= input.length()) {
+            j = findChar(',', input, i);
+            String arg = input.substring(i, j);
+            try {
+                if (i == 0)
+                    out.add(new Integer(arg));
+                else
+                    out.add(new Long(arg));
+            } catch (NumberFormatException e) {
+                out.add(arg);
+            }
+
+            i = j + 1; // move past comma
+        }
+        if (DBG) Log.d(TAG, "Exit generateArgsBiev()");
+        return out.toArray();
+    }
+
+    /**
      * @return {@code true} if the given string is a valid vendor-specific AT command.
      */
     private boolean processVendorSpecificAt(String atString) {
@@ -3777,63 +3792,90 @@ final class HeadsetStateMachine extends StateMachine {
         if (DBG) Log.d(TAG, "Exit processKeyPressed()");
     }
 
-    private void sendIndicatorIntent(BluetoothDevice device, int ind_id, String ind_value)
-    {
-        Intent intent = new Intent(BluetoothHeadset.ACTION_HF_INDICATORS_VALUE_CHANGED);
-        intent.putExtra(BluetoothDevice.EXTRA_DEVICE, device);
-        intent.putExtra(BluetoothHeadset.EXTRA_HF_INDICATORS_IND_ID, ind_id);
-        if (ind_value != null)
-            intent.putExtra(BluetoothHeadset.EXTRA_HF_INDICATORS_IND_VALUE, ind_value);
-
-        mService.sendBroadcast(intent, HeadsetService.BLUETOOTH_PERM);
-    }
-
-    private void processAtBind( String at_string, BluetoothDevice device) {
-        log("processAtBind processAtBind: " + at_string);
-
-        // Parse the AT String to find the Indicator Ids that are supported
-        int ind_id = 0;
-        int iter = 0;
-        int iter1 = 0;
-
-        while (iter < at_string.length()) {
-            iter1 = findChar(',', at_string, iter);
-            String id = at_string.substring(iter, iter1);
-
-            try {
-                ind_id = new Integer(id);
-            } catch (NumberFormatException e) {
-                Log.e(TAG, Log.getStackTraceString(new Throwable()));
-            }
-
-            switch (ind_id) {
-                case HeadsetHalConstants.HF_INDICATOR_ENHANCED_DRIVER_SAFETY :
-                    log("Send Broadcast intent for the" +
-                        "Enhanced Driver Safety indicator.");
-                    sendIndicatorIntent(device, ind_id, null);
-                    break;
-                case HeadsetHalConstants.HF_INDICATOR_BATTERY_LEVEL_STATUS :
-                    log("Send Broadcast intent for the" +
-                        "Battery Level indicator.");
-                    sendIndicatorIntent(device, ind_id, null);
-                    break;
-                default:
-                    log("Invalid HF Indicator Received");
-                    break;
-            }
-
-            iter = iter1 + 1; // move past comma
+    private void processAtBind(String hf_ind, int type, BluetoothDevice device) {
+        if (DBG) Log.d(TAG, "Enter processAtBind()");
+        if(device == null) {
+            Log.w(TAG, "processAtBind device is null");
+            return;
         }
+        if (DBG) Log.d(TAG, "processAtBind for device:" + device + "type = " + type);
+        // find the current enable/diable status from app and update to stack.
+        // loop through list of hf indicators AG supports
+        if (type == 1) {
+            for (Iterator<Pair<Integer, Boolean>> iter =
+                    mHfIndicatorAgList.iterator(); iter.hasNext(); ) {
+                Pair<Integer, Boolean> entry = iter.next();
+                bindResponseNative(entry.first, entry.second, getByteAddress(device));
+            }
+            atResponseCodeNative(HeadsetHalConstants.AT_RESPONSE_OK, 0, getByteAddress(device));
+        } else if (type == 0) {
+            if (DBG) Log.d(TAG, "hf_ind " + hf_ind);
+            Object[] args = generateArgs(hf_ind);
+            for (int i = 0; i < args.length; i++) {
+                mHfIndicatorHfList.add((int)args[i]);
+            }
+        }
+        else {
+            StringBuilder sb = new StringBuilder("(");
+            String result = null;
+            for (Iterator<Pair<Integer, Boolean>> iter =
+                    mHfIndicatorAgList.iterator(); iter.hasNext(); ) {
+                Pair<Integer, Boolean> entry = iter.next();
+                //Make a string and send down;
+                //TODO: Check limit of 20, see if multiple res needs to be sent when > 20
+                sb.append(entry.first);
+                sb.append(",");
+            }
+            sb.replace(sb.length() - 1, sb.length(), ")");
+            result = sb.toString();
+            if (DBG) Log.d(TAG, "AG list of HF ind = " + result);
+            bindStringResponseNative(result, getByteAddress(device));
+            atResponseCodeNative(HeadsetHalConstants.AT_RESPONSE_OK, 0, getByteAddress(device));
+        }
+        if (DBG) Log.d(TAG, "Exit processAtBind()");
     }
 
-    private void processAtBiev( int ind_id, int ind_value, BluetoothDevice device) {
-        log(" Process AT + BIEV Command : " + ind_id + ", " + ind_value);
+    private void processAtBiev(String hf_ind_value, BluetoothDevice device) {
+        if (DBG) Log.d(TAG, "Enter processAtBiev()");
+        boolean found = false;
+        int anum;
+        long value;
 
-        String ind_value_str = Integer.toString(ind_value);
-
-        Intent intent = new Intent(BluetoothHeadset.ACTION_HF_INDICATORS_VALUE_CHANGED);
-        intent.putExtra(BluetoothDevice.EXTRA_DEVICE, device);
-        sendIndicatorIntent(device, ind_id, ind_value_str);
+        if(device == null) {
+            Log.w(TAG, "processAtBiev device is null");
+            return;
+        }
+        Object[] args = generateArgsBiev(hf_ind_value);
+        anum = (int)args[0];
+        value = (long)args[1];
+        if (DBG) Log.d(TAG, "processAtBiev for device:" + device + " anum = " + anum + " value = " + value);
+        for (Iterator<Pair<Integer, Boolean>> iter =
+                mHfIndicatorAgList.iterator(); iter.hasNext(); ) {
+            Pair<Integer, Boolean> entry = iter.next();
+            if (entry.first.equals(anum))
+            {
+                if ((entry.second == true) && (value < 2))
+                {
+                    broadcastHfIndicatorValueChangeIntent(anum, value, device);
+                    atResponseCodeNative(HeadsetHalConstants.AT_RESPONSE_OK, 0,
+                                                       getByteAddress(device));
+                }
+                else
+                {
+                    Log.w(TAG, "assigned num " + anum + " is disabled or value not correct");
+                    atResponseCodeNative(HeadsetHalConstants.AT_RESPONSE_ERROR, 0,
+                                                          getByteAddress(device));
+                }
+                found = true;
+                break;
+            }
+        }
+        if(!found)
+        {
+           Log.w(TAG, "assigned num " + anum + " not present in AG list");
+           atResponseCodeNative(HeadsetHalConstants.AT_RESPONSE_ERROR, 0, getByteAddress(device));
+        }
+        if (DBG) Log.d(TAG, "Exit processAtBiev()");
     }
 
     private void onConnectionStateChanged(int state, byte[] address) {
@@ -3983,19 +4025,23 @@ final class HeadsetStateMachine extends StateMachine {
         if (DBG) Log.d(TAG, "Exit onKeyPressed()");
     }
 
-    private void onATBind(String atString, byte[] address) {
-        StackEvent event = new StackEvent(EVENT_TYPE_BIND);
-        event.valueString = atString;
+    private void onAtBind(String hf_ind, int type, byte[] address) {
+        if (DBG) Log.d(TAG, "Enter onAtBind()");
+        StackEvent event = new StackEvent(EVENT_TYPE_AT_BIND);
+        event.valueString = hf_ind;
+        event.valueInt = type;
         event.device = getDevice(address);
         sendMessage(STACK_EVENT, event);
+        if (DBG) Log.d(TAG, "Exit onAtBind()");
     }
 
-    private void onATBiev(int ind_id, int ind_value, byte[] address) {
-        StackEvent event = new StackEvent(EVENT_TYPE_BIEV);
-        event.valueInt = ind_id;
-        event.valueInt2 = ind_value;
+    private void onAtBiev(String hf_ind_val, byte[] address) {
+        if (DBG) Log.d(TAG, "Enter onAtBiev()");
+        StackEvent event = new StackEvent(EVENT_TYPE_AT_BIEV);
+        event.valueString= hf_ind_val;
         event.device = getDevice(address);
         sendMessage(STACK_EVENT, event);
+        if (DBG) Log.d(TAG, "Exit onAtBiev()");
     }
 
     private void processIntentBatteryChanged(Intent intent) {
@@ -4206,8 +4252,6 @@ final class HeadsetStateMachine extends StateMachine {
     final private static int EVENT_TYPE_UNKNOWN_AT = 15;
     final private static int EVENT_TYPE_KEY_PRESSED = 16;
     final private static int EVENT_TYPE_WBS = 17;
-    final private static int EVENT_TYPE_BIND = 18;
-    final private static int EVENT_TYPE_BIEV = 19;
 
     private class StackEvent {
         int type = EVENT_TYPE_NONE;
@@ -4238,7 +4282,6 @@ final class HeadsetStateMachine extends StateMachine {
     private native boolean cindResponseNative(int service, int numActive, int numHeld,
                                               int callState, int signal, int roam,
                                               int batteryCharge, byte[] address);
-    private native boolean bindResponseNative(int ind_id, boolean ind_status, byte[] address);
     private native boolean notifyDeviceStatusNative(int networkState, int serviceType, int signal,
                                                     int batteryCharge);
 
