@@ -135,6 +135,7 @@ public class BluetoothMapService extends ProfileService {
     private HashMap<BluetoothMapAccountItem, BluetoothMapMasInstance> mMasInstanceMap =
             new HashMap<BluetoothMapAccountItem, BluetoothMapMasInstance>(1);
 
+    private static BluetoothDevice mRemoteDevice = null;
 
     private ArrayList<BluetoothMapAccountItem> mEnabledAccounts = null;
     private static String sRemoteDeviceName = null;
@@ -866,6 +867,7 @@ public class BluetoothMapService extends ProfileService {
             sendShutdownMessage();
         }
         mStartError = true;
+        setState(BluetoothMap.STATE_DISCONNECTED, BluetoothMap.RESULT_CANCELED);
         return true;
     }
 

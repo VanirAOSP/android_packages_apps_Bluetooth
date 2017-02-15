@@ -240,6 +240,12 @@ static void initNative(JNIEnv *env, jobject object, jint maxA2dpConnections,
     }
 
     pthread_mutex_lock(&mMutex);
+    if (mCallbacksObj != NULL) {
+         ALOGW("Cleaning up A2DP callback object");
+         env->DeleteGlobalRef(mCallbacksObj);
+         mCallbacksObj = NULL;
+    }
+
     if ((mCallbacksObj = env->NewGlobalRef(object)) == NULL) {
         ALOGE("Failed to allocate Global Ref for A2DP Callbacks");
         pthread_mutex_unlock(&mMutex);
@@ -252,15 +258,6 @@ static void initNative(JNIEnv *env, jobject object, jint maxA2dpConnections,
         ALOGE("Failed to get Bluetooth A2DP Interface");
         return;
     }
-
-    pthread_mutex_lock(&mMutex);
-    if (mCallbacksObj != NULL) {
-         ALOGW("Cleaning up A2DP callback object");
-         env->DeleteGlobalRef(mCallbacksObj);
-         mCallbacksObj = NULL;
-    }
-    mCallbacksObj = env->NewGlobalRef(object);
-    pthread_mutex_unlock(&mMutex);
 
     if ( (status = sBluetoothA2dpInterface->init(&sBluetoothA2dpCallbacks,
             maxA2dpConnections, multiCastState,
